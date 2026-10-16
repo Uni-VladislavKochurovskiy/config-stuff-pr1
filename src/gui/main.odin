@@ -8,14 +8,20 @@ import "vendor:glfw"
 import im "../../lib/imgui"
 import "../inklib"
 import fmt "core:fmt"
-import runtime "base:runtime"
 
 terminal: inklib.Terminal
 
 main :: proc() {
-    inklib.terminal_create(&terminal)
+    should_exit, res := cli_deal()
+    if should_exit do return
 
-    glfw_wrap(&terminal, imgui_func)
+    fmt.printfln("debug: terminal args: %s", inklib.to_string(res.terminal_config))
+    fmt.printfln("debug: gui args: %s", to_string(res.gui_config))
+    fmt.println()
+
+    inklib.terminal_create(&terminal, res.terminal_config)
+
+    glfw_wrap(&terminal, imgui_func, res.gui_config)
 
     inklib.terminal_destroy(&terminal)
 }

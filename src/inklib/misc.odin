@@ -21,3 +21,8 @@ error_string :: proc(err: Error) -> string {
 
     unreachable()
 }
+
+to_string :: proc {
+    error_string,
+    terminal_config_string,
+}

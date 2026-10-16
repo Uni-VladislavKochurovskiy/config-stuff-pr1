@@ -1,0 +1,4 @@
+help
+say "hello, world!"
+ls ./
+cd "thingo"
