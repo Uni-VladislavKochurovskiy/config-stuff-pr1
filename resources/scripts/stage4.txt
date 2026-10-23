@@ -1,0 +1,35 @@
+who
+who -H
+who -q
+who am i
+who -x
+who someone
+ls
+ls -a
+ls home blahblahblah
+ls /home/king -a
+ls blahblahblah/motd
+ls nope
+ls blahblahblah/motd/inside
+ls -z
+cd home/king
+ls
+cd documents/uni
+ls
+cat notes.txt task.txt
+cat ../todo.txt
+cat ./notes.txt ../../.bashrc
+cat
+cat nope.txt
+cat ../../music
+cd ..
+cd ../../..
+cd ../../../..
+ls
+cd blahblahblah/motd
+cd nope
+cd home music
+cd "/home/king/music"
+cat playlist.txt
+cd
+cat /blahblahblah/hostname /blahblahblah/motd

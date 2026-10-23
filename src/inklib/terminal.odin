@@ -1,5 +1,6 @@
 package inklib
 
+import "core:c/libc"
 import "core:fmt"
 import "core:os"
 import "core:strings"
@@ -13,6 +14,8 @@ AVAILABLE_COMMANDS ::
     cd
     say
     tree
+    cat
+    who
 `
 
 TerminalConfig :: struct {
@@ -36,6 +39,7 @@ Terminal :: struct {
     prompt:      string,
     history:     [dynamic]string,
     commands:    [dynamic]string,
+    login_time:  string,
 
     vfs: ^VFS,
     current_path_str: string,
@@ -59,7 +63,11 @@ terminal_create :: proc(self: ^Terminal, config: TerminalConfig = {}) {
 
     self.user = u
     self.host = h
-    self.prompt = fmt.aprintf("[%s@%s] $ ", self.user, self.host)
+
+    now := libc.time(nil)
+    time_buf: [32]u8
+    n := libc.strftime(raw_data(time_buf[:]), len(time_buf), "%Y-%m-%d %H:%M", libc.localtime(&now))
+    self.login_time = strings.clone(string(time_buf[:n]))
 
 
     // config processing
@@ -80,6 +88,7 @@ terminal_create :: proc(self: ^Terminal, config: TerminalConfig = {}) {
         fmt.println("info: vfs not loaded. initializing default empty one.")
         self.vfs = vfs_create_empty()
     }
+    terminal_update_prompt(self)
 
     // default message
     append(&self.history, strings.clone("To get a list of commands, type `help` or `listcmd`"))
@@ -102,6 +111,18 @@ terminal_create :: proc(self: ^Terminal, config: TerminalConfig = {}) {
     }
 }
 
+terminal_update_prompt :: proc(self: ^Terminal) {
+    delete(self.current_path_str)
+    delete(self.prompt)
+
+    self.current_path_str = vfs_current_dir_string(self.vfs)
+    self.prompt = fmt.aprintf("[%s@%s %s] $ ", self.user, self.host, self.current_path_str)
+}
+
+terminal_print :: proc(self: ^Terminal, format: string, args: ..any) {
+    append(&self.history, fmt.aprintf(format, ..args))
+}
+
 terminal_destroy :: proc(self: ^Terminal) {
     vfs_destroy(self.vfs)
     self.vfs = nil
@@ -112,6 +133,7 @@ terminal_destroy :: proc(self: ^Terminal) {
     for line in self.history do delete(line)
     delete(self.history)
 
+    delete(self.login_time)
     delete(self.current_path_str)
     delete(self.prompt)
     delete(self.host)
@@ -158,15 +180,16 @@ terminal_exec :: proc(self: ^Terminal, cmd_raw: string) {
             clear(&self.history)
 
         case "ls":
-            append(&self.history, fmt.aprintf("ls: called with: %v", cmd_args))
+            cmd_ls(self, cmd_args)
 
         case "cd":
-            if no_args {
-                append(&self.history, strings.clone("error: not enough arguments: required: 1 path"))
-                break
-            }
+            cmd_cd(self, cmd_args)
 
-            append(&self.history, fmt.aprintf("cd: called with: %v", cmd_args))
+        case "cat":
+            cmd_cat(self, cmd_args)
+
+        case "who":
+            cmd_who(self, cmd_args)
 
         case "say":
             if no_args {

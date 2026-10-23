@@ -10,6 +10,11 @@ Error :: enum {
     UnableToOpen,
     IsNotDirectory,
     UnableToRead,
+
+    // vfs paths
+    NotFound,
+    NotDirectory,
+    IsDirectory,
 }
 
 error_string :: proc(err: Error) -> string {
@@ -28,6 +33,15 @@ error_string :: proc(err: Error) -> string {
 
         case .UnableToRead:
             return "error: unable to read file or directory inside vfs"
+
+        case .NotFound:
+            return "No such file or directory"
+
+        case .NotDirectory:
+            return "Not a directory"
+
+        case .IsDirectory:
+            return "Is a directory"
 
         case:
             return "error: unknown error"

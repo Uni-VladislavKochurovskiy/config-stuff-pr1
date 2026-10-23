@@ -7,7 +7,7 @@ echo built project, starting
 
 # no arguments = default
 if [ $# -eq 0 ]; then
-    set -- -v resources/vfs/rich -ss resources/scripts/stage3.txt
+    set -- -v resources/vfs/rich -ss resources/scripts/stage4.txt
 fi
 
 bin/raycommands.x86_64 "$@"

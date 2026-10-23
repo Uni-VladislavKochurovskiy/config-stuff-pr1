@@ -21,7 +21,7 @@ VFSNode :: struct {
 
 VFS :: struct {
     root:        ^VFSNode,
-    current_dir: []string,
+    current_dir: [dynamic]string,
 }
 
 vfs_create :: proc(rootpath: string) -> (^VFS, Error) {
@@ -59,6 +59,7 @@ vfs_create_empty :: proc() -> ^VFS {
 vfs_destroy :: proc(self: ^VFS) {
     if self == nil do return
     vfs_node_destroy(self.root)
+    for part in self.current_dir do delete(part)
     delete(self.current_dir)
     free(self)
 }
@@ -135,4 +136,65 @@ vfs_tree_string :: proc(vfs: ^VFS, allocator := context.allocator) -> string {
     strings.write_string(&sb, "/\n")
     print_node(&sb, vfs.root, "")
     return strings.to_string(sb)
+}
+
+vfs_split_path :: proc(self: ^VFS, path: string, allocator := context.temp_allocator) -> [dynamic]string {
+    parts := make([dynamic]string, allocator)
+    if !strings.has_prefix(path, "/") {
+        append(&parts, ..self.current_dir[:])
+    }
+
+    it := path
+    for part in strings.split_iterator(&it, "/") {
+        switch part {
+            case "", ".":
+                break
+            case "..":
+                if len(parts) > 0 do pop(&parts)
+            case:
+                append(&parts, part)
+        }
+    }
+    return parts
+}
+
+vfs_find :: proc(self: ^VFS, parts: []string) -> (^VFSNode, Error) {
+    node := self.root
+    for part in parts {
+        children, is_dir := node.content.(VFSNode_Content_Directory)
+        if !is_dir do return nil, .NotDirectory
+
+        next: ^VFSNode
+        for child in children {
+            if child.name == part {
+                next = child
+                break
+            }
+        }
+        if next == nil do return nil, .NotFound
+        node = next
+    }
+    return node, .None
+}
+
+vfs_resolve :: proc(self: ^VFS, path: string) -> (^VFSNode, Error) {
+    return vfs_find(self, vfs_split_path(self, path)[:])
+}
+
+vfs_change_dir :: proc(self: ^VFS, path: string) -> Error {
+    parts := vfs_split_path(self, path)
+    node := vfs_find(self, parts[:]) or_return
+    if _, is_dir := node.content.(VFSNode_Content_Directory); !is_dir do return .NotDirectory
+
+    new_dir := make([dynamic]string, 0, len(parts))
+    for part in parts do append(&new_dir, strings.clone(part))
+
+    for part in self.current_dir do delete(part)
+    delete(self.current_dir)
+    self.current_dir = new_dir
+    return .None
+}
+
+vfs_current_dir_string :: proc(self: ^VFS, allocator := context.allocator) -> string {
+    return strings.concatenate({"/", strings.join(self.current_dir[:], "/", context.temp_allocator)}, allocator)
 }
