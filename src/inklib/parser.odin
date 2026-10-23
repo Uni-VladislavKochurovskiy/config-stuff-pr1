@@ -17,6 +17,8 @@ parse_command :: proc(
         return false
     }
 
+    args = make([dynamic]string, allocator)
+
     trimmed := strings.trim_space(input)
     if len(trimmed) == 0 do return args, .None
 

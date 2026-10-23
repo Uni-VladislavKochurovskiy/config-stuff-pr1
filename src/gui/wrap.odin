@@ -1,18 +1,12 @@
 package gui
 
-import "base:runtime"
 import "core:fmt"
+import "core:os"
+import "core:strings"
 
-import "vendor:glfw"
-import gl "vendor:OpenGL"
-
-import im "../../lib/imgui"
-import imglfw "../../lib/imgui/backends/glfw"
-import imgl "../../lib/imgui/backends/opengl3"
+import rl "vendor:raylib"
 
 import "../inklib"
-import strings "core:strings"
-import strconv "core:strconv"
 
 GuiConfig :: struct {
     font:      Maybe(string),
@@ -29,111 +23,73 @@ gui_config_string :: proc(config: GuiConfig) -> string {
 }
 
 
-glfw_error_callback :: proc "c" (error: i32, description: cstring) {
-    context = runtime.default_context()
-    fmt.eprintfln("GLFW Error %d: %s", error, description)
-}
+gui_run :: proc(terminal: ^inklib.Terminal, config: GuiConfig = {}) {
+    rl.SetTraceLogLevel(.WARNING)
+    rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT, .WINDOW_ALWAYS_RUN, .WINDOW_HIGHDPI})
 
-glfw_wrap :: proc(terminal: ^inklib.Terminal, imgui_func: proc() -> (), config: GuiConfig = {}) {
-    glfw.SetErrorCallback(glfw_error_callback)
-    glfw.InitHint(glfw.PLATFORM, glfw.PLATFORM_X11)
-    ensure(bool(glfw.Init()))
+    rl.InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, fmt.ctprintf("%s@%s - raycommands", terminal.user, terminal.host))
+    defer rl.CloseWindow()
 
-    glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, GL_MAJOR)
-    glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, GL_MINOR)
-    glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
+    font_size := config.font_size.? or_else DEFAULT_FONT_SIZE
+    font, is_custom_font := font_load(config.font, font_size)
+    defer if is_custom_font do rl.UnloadFont(font)
 
-    main_scale := imglfw.GetContentScaleForMonitor(glfw.GetPrimaryMonitor())
-    window := glfw.CreateWindow(
-        i32(WINDOW_WIDTH * main_scale),
-        i32(WINDOW_HEIGHT * main_scale),
-        "",
-        nil, nil)
-    ensure(window != nil)
-    glfw.MakeContextCurrent(window)
-    glfw.SwapInterval(1)
-    glfw.SetWindowTitle(window, fmt.caprintf("%s@%s - raycommands", terminal.user, terminal.host))
+    view := View{font = font, font_size = f32(font_size), recall_index = len(terminal.commands)}
+    defer view_destroy(&view)
 
-    gl.load_up_to(GL_MAJOR, GL_MINOR, glfw.gl_set_proc_address)
+    for {
+        if rl.WindowShouldClose() do break
+        if terminal.should_exit do break
 
-    im.CHECKVERSION()
-    im.CreateContext()
-    io := im.GetIO()
-    io.ConfigFlags |= {
-        .NavEnableKeyboard,
-    }
+        view_update(&view, terminal)
 
+        rl.BeginDrawing()
+        rl.ClearBackground(CONSOLE_BG)
+        view_draw(&view, terminal)
+        rl.EndDrawing()
 
-    if config.font != nil {
-        font_path := config.font.?
-        font_size := config.font_size.? or_else 12
-
-        font := im.FontAtlas_AddFontFromFileTTF(
-            io.Fonts,
-            strings.clone_to_cstring(font_path, context.temp_allocator),
-            (f32)(font_size) * main_scale,
-            nil,
-            &cyrillic_ranges[0],
-        )
-        if font == nil {
-            fmt.eprintfln("error: unable to load font: %s", font_path)
-        } else {
-            fmt.println("success: font loaded")
-        }
-    } else {
-        fmt.println("info: no font entered, using default ImGui font")
-        if config.font_size != nil {
-            fmt.println("warning: because default font is used, custom font size has no effect")
-        }
-    }
-
-    im.StyleColorsDark()
-
-    style := im.GetStyle()
-    im.Style_ScaleAllSizes(style, main_scale)
-    style.FontScaleDpi = main_scale
-    io.ConfigDpiScaleFonts = true
-    io.ConfigDpiScaleViewports = true
-    io.IniFilename = nil
-
-    imglfw.InitForOpenGL(window, true)
-    imgl.Init(GLSL_VERSION)
-
-    clear_color := im.Vec4{0.0, 0.0, 0.0, 1.0}
-    gl.ClearColor(
-        clear_color.x * clear_color.w,
-        clear_color.y * clear_color.w,
-        clear_color.z * clear_color.w,
-        clear_color.w
-    )
-
-    for !glfw.WindowShouldClose(window) {
-        glfw.PollEvents()
-
-        if glfw.GetWindowAttrib(window, glfw.ICONIFIED) != 0 {
-            imglfw.Sleep(10)
-            continue
-        }
-
-        imgl.NewFrame()
-        imglfw.NewFrame()
-        im.NewFrame()
-
-        imgui_func()
-
-        im.Render()
-        display_w, display_h := glfw.GetFramebufferSize(window)
-        gl.Viewport(0, 0, display_w, display_h)
-        gl.Clear(gl.COLOR_BUFFER_BIT)
-        imgl.RenderDrawData(im.GetDrawData())
-        glfw.SwapBuffers(window)
         free_all(context.temp_allocator)
     }
+}
 
-    imgl.Shutdown()
-    imglfw.Shutdown()
-    im.DestroyContext()
+font_load :: proc(path: Maybe(string), size: int) -> (font: rl.Font, custom: bool) {
+    codepoints := make([dynamic]rune, context.temp_allocator)
+    for r in CODEPOINT_RANGES {
+        for codepoint := r[0]; codepoint <= r[1]; codepoint += 1 {
+            append(&codepoints, codepoint)
+        }
+    }
 
-    glfw.DestroyWindow(window)
-    glfw.Terminate()
+    try_load :: proc(path: string, size: int, codepoints: []rune) -> (rl.Font, bool) {
+        if !os.exists(path) do return {}, false
+
+        dpi_x := rl.GetWindowScaleDPI().x
+        font := rl.LoadFontEx(
+            strings.clone_to_cstring(path, context.temp_allocator),
+            i32(f32(size) * dpi_x),
+            raw_data(codepoints),
+            i32(len(codepoints)),
+        )
+        if !rl.IsFontValid(font) do return {}, false
+
+        return font, true
+    }
+
+    if p, ok := path.?; ok {
+        if f, loaded := try_load(p, size, codepoints[:]); loaded {
+            fmt.printfln("success: font loaded: %s", p)
+            return f, true
+        }
+        fmt.eprintfln("error: unable to load font: %s", p)
+    }
+
+    for p in POSSIBLE_LOCAL_FONTS {
+        if f, loaded := try_load(p, size, codepoints[:]); loaded {
+            fmt.printfln("info: using system font: %s", p)
+            return f, true
+        }
+    }
+
+    fmt.println("warning: no usable font found, using raylib default font (no cyrillic)")
+    return rl.GetFontDefault(), false
 }

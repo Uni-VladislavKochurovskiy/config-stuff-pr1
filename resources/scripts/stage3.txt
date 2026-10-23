@@ -1,0 +1,15 @@
+help
+listcmd
+tree
+say "hello, world!"
+say hello world
+say "broken quotes
+say
+ls
+ls home "my documents" -l
+cd
+cd home/king
+cd "/usr/share doc"
+whoami
+   
+tree extra args are ignored

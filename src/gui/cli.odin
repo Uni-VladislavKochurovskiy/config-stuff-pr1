@@ -58,6 +58,9 @@ cli_deal :: proc() -> (should_exit := false, res: CliDealResult = {}) {
                 } else {
                     fmt.eprintln("error: font size flag needs an integer.")
                 }
+
+            case:
+                fmt.eprintfln("warning: unknown argument: %s", arg)
         }
     }
 
@@ -71,8 +74,8 @@ cli_print_help :: proc() {
     fmt.println("   -h,    --help                               Show this help message")
     fmt.println("   -v,    --vfs <path>                         Set VFS root")
     fmt.println("   -ss,   --start-script <path>                Set start script")
-    fmt.println("   -f,    --font <path> (only .ttf)            Set font used by terminal")
-    fmt.println("   -fs,   --font-size <integer> (default=12)   Set font size")
+    fmt.println("   -f,    --font <path>                        Set font used by terminal")
+    fmt.println("   -fs,   --font-size <integer> (default=24)   Set font size")
     fmt.println()
     fmt.println("Description:")
     fmt.println("   VFS - virtual filesystem")

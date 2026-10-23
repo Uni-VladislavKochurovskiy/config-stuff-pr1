@@ -1,0 +1,5 @@
+say "this line is gonna disappear"
+clear
+say "thanos snapped his fingers, ending galaxy now"
+exit
+say "this line is impossible. if you see this message then i have no idea whats wrong with my code"
