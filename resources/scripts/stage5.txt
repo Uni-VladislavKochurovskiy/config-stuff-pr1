@@ -19,7 +19,7 @@ chmod uz+r home
 chmod 755 nope
 rmdir tmp
 ls
-rmdir -p home/king/trash/old/stuff
+rmdir -p home/king/trash/old/thingo
 ls home/king
 rmdir
 rmdir nope
