@@ -16,6 +16,8 @@ AVAILABLE_COMMANDS ::
     tree
     cat
     who
+    chmod
+    rmdir
 `
 
 TerminalConfig :: struct {
@@ -75,23 +77,23 @@ terminal_create :: proc(self: ^Terminal, config: TerminalConfig = {}) {
     if path, ok := config.vfs_root.?; ok {
         if vfs_instance, err := vfs_create(path); err == .None {
             self.vfs = vfs_instance
-            append(&self.history, fmt.aprintf("success: initialized VFS: %s", path))
+            terminal_print(self, "success: initialized VFS: %s", path)
             fmt.printfln("success: loaded vfs from %s", path)
         } else {
-            append(&self.history, strings.clone(to_string(err)))
-            append(&self.history, fmt.aprintf("error: failed to init VFS: %s", path))
+            terminal_print(self, "%s", to_string(err))
+            terminal_print(self, "error: failed to init VFS: %s", path)
             fmt.eprintfln("%s\nerror: failed to load vfs: %s", to_string(err), path)
         }
     }
     if self.vfs == nil {
-        append(&self.history, strings.clone("info: using empty VFS"))
+        terminal_print(self, "info: using empty VFS")
         fmt.println("info: vfs not loaded. initializing default empty one.")
         self.vfs = vfs_create_empty()
     }
     terminal_update_prompt(self)
 
     // default message
-    append(&self.history, strings.clone("To get a list of commands, type `help` or `listcmd`"))
+    terminal_print(self, "To get a list of commands, type `help` or `listcmd`")
 
     // start script
     if path, ok := config.start_script.?; ok {
@@ -105,7 +107,7 @@ terminal_create :: proc(self: ^Terminal, config: TerminalConfig = {}) {
             }
             fmt.println("success: used start script")
         } else {
-            append(&self.history, fmt.aprintf("error: failed to read start script: %s", path))
+            terminal_print(self, "error: failed to read start script: %s", path)
             fmt.eprintfln("error: failed to read start script file: %s", path)
         }
     }
@@ -143,11 +145,11 @@ terminal_destroy :: proc(self: ^Terminal) {
 
 terminal_exec :: proc(self: ^Terminal, cmd_raw: string) {
     if len(cmd_raw) == 0 {
-        append(&self.history, strings.clone(self.prompt))
+        terminal_print(self, "%s", self.prompt)
         return
     }
 
-    append(&self.history, fmt.aprintf("%s%s", self.prompt, cmd_raw))
+    terminal_print(self, "%s%s", self.prompt, cmd_raw)
 
     is_blank := len(strings.trim_space(cmd_raw)) == 0
     is_repeat := len(self.commands) > 0 && self.commands[len(self.commands) - 1] == cmd_raw
@@ -157,7 +159,7 @@ terminal_exec :: proc(self: ^Terminal, cmd_raw: string) {
 
     args, err := parse_command(cmd_raw)
     if err != .None {
-        append(&self.history, strings.clone(to_string(err)))
+        terminal_print(self, "%s", to_string(err))
         return
     }
 
@@ -170,7 +172,7 @@ terminal_exec :: proc(self: ^Terminal, cmd_raw: string) {
     switch cmd {
         case "listcmd": fallthrough // alias
         case "help":
-            append(&self.history, strings.clone(AVAILABLE_COMMANDS))
+            terminal_print(self, "%s", AVAILABLE_COMMANDS)
 
         case "exit":
             self.should_exit = true
@@ -191,18 +193,24 @@ terminal_exec :: proc(self: ^Terminal, cmd_raw: string) {
         case "who":
             cmd_who(self, cmd_args)
 
+        case "chmod":
+            cmd_chmod(self, cmd_args)
+
+        case "rmdir":
+            cmd_rmdir(self, cmd_args)
+
         case "say":
             if no_args {
-                append(&self.history, strings.clone("error: not enough arguments: required: 1 string"))
+                terminal_print(self, "error: not enough arguments: required: 1 string")
                 break
             }
 
-            append(&self.history, strings.clone(cmd_args[0]))
+            terminal_print(self, "%s", cmd_args[0])
 
         case "tree":
             append(&self.history, vfs_tree_string(self.vfs))
 
         case:
-            append(&self.history, fmt.aprintf("error: command not found: %s", cmd))
+            terminal_print(self, "error: command not found: %s", cmd)
     }
 }

@@ -1,0 +1,34 @@
+ls -l
+ls -la home/king
+chmod 700 home/king/documents
+ls -l home/king
+chmod 0640 home/king/documents/todo.txt
+ls -l home/king/documents
+chmod u+x,g-w home/king/documents/todo.txt
+chmod a=r home/king/music/playlist.txt
+chmod -w home/king/documents/uni/notes.txt
+chmod go+rwx home/king/documents/uni/task.txt
+ls -l home/king/documents/todo.txt home/king/music home/king/documents/uni
+chmod -R 755 home/king/documents
+ls -l home/king/documents home/king/documents/uni
+chmod
+chmod 755
+chmod 999 home
+chmod u*x home
+chmod uz+r home
+chmod 755 nope
+rmdir tmp
+ls
+rmdir -p home/king/trash/old/stuff
+ls home/king
+rmdir
+rmdir nope
+rmdir home
+rmdir blahblahblah/motd
+rmdir /
+cd home/king/music
+rmdir .
+rmdir /home/king/music
+rmdir -x music
+cd /
+tree

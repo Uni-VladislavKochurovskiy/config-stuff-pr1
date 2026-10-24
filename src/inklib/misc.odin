@@ -11,10 +11,11 @@ Error :: enum {
     IsNotDirectory,
     UnableToRead,
 
-    // vfs paths
     NotFound,
     NotDirectory,
     IsDirectory,
+    NotEmpty,
+    Busy,
 }
 
 error_string :: proc(err: Error) -> string {
@@ -42,6 +43,12 @@ error_string :: proc(err: Error) -> string {
 
         case .IsDirectory:
             return "Is a directory"
+
+        case .NotEmpty:
+            return "Directory not empty"
+
+        case .Busy:
+            return "Device or resource busy"
 
         case:
             return "error: unknown error"

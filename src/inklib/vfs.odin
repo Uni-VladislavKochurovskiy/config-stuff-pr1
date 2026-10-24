@@ -17,6 +17,7 @@ VFSNode_Content :: union {
 VFSNode :: struct {
     name:    string,
     content: VFSNode_Content,
+    mode:    u32,
 }
 
 VFS :: struct {
@@ -48,6 +49,7 @@ vfs_create_empty :: proc() -> ^VFS {
     root_node := new(VFSNode)
     root_node.name = strings.clone("/")
     root_node.content = VFSNode_Content_Directory{}
+    root_node.mode = 0o755
 
     self := new(VFS)
     self.root = root_node
@@ -90,8 +92,11 @@ _vfs_load_recursive :: proc(path: string, node: ^VFSNode) -> Error {
     dir := &node.content.(VFSNode_Content_Directory)
 
     for h in handles {
+        if h.name == ".gitkeep" do continue
+
         child := new(VFSNode)
         child.name = strings.clone(h.name)
+        child.mode = transmute(u32)h.mode & 0o777
         append(dir, child)
 
         fullpath := slashpath.join({path, h.name})
@@ -197,4 +202,43 @@ vfs_change_dir :: proc(self: ^VFS, path: string) -> Error {
 
 vfs_current_dir_string :: proc(self: ^VFS, allocator := context.allocator) -> string {
     return strings.concatenate({"/", strings.join(self.current_dir[:], "/", context.temp_allocator)}, allocator)
+}
+
+vfs_remove_dir :: proc(self: ^VFS, path: string) -> Error {
+    parts := vfs_split_path(self, path)
+    if len(parts) == 0 do return .Busy
+
+    if len(parts) <= len(self.current_dir) && slice.equal(parts[:], self.current_dir[:len(parts)]) {
+        return .Busy
+    }
+
+    parent := vfs_find(self, parts[:len(parts) - 1]) or_return
+    node := vfs_find(self, parts[:]) or_return
+
+    children, is_dir := node.content.(VFSNode_Content_Directory)
+    if !is_dir do return .NotDirectory
+    if len(children) > 0 do return .NotEmpty
+
+    siblings := &parent.content.(VFSNode_Content_Directory)
+    for child, i in siblings {
+        if child == node {
+            ordered_remove(siblings, i)
+            break
+        }
+    }
+    vfs_node_destroy(node)
+    return .None
+}
+
+vfs_mode_string :: proc(node: ^VFSNode, allocator := context.temp_allocator) -> string {
+    _, is_dir := node.content.(VFSNode_Content_Directory)
+    letters := "rwxrwxrwx"
+
+    buf := make([]u8, 10, allocator)
+    buf[0] = is_dir ? 'd' : '-'
+    for i in 0..<9 {
+        bit := u32(1) << u32(8 - i)
+        buf[i + 1] = node.mode & bit != 0 ? letters[i] : '-'
+    }
+    return string(buf)
 }
